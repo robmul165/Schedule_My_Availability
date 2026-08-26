@@ -5,7 +5,7 @@
 const CONFIG = {
   // Paste the Web app URL you get from deploying apps-script/Code.gs here.
   // It looks like: https://script.google.com/macros/s/AKfycb.../exec
-  appsScriptUrl: 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE',
+  appsScriptUrl: 'https://script.google.com/macros/s/AKfycbxvVrI7TWa60ALR0N6aeRrzCDnXFyhqCuixNazwOIF7Uxypg2mfDa7MVFF2XF9XC6tUxQ/exec',
 
   siteName: 'Is Rob Free?',
   tagline: "Check my schedule, pick a time, and let's do something.",
