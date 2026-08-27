@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Is Rob Free?</title>
+<meta name="description" content="Check my schedule and grab a time, or join something I'm already doing." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%93%85</text></svg>" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <p class="hero-emoji" aria-hidden="true">📅</p>
+    <h1 id="site-title">Loading…</h1>
+    <p id="site-tagline" class="tagline"></p>
+  </header>
+
+  <div id="setup-banner" class="setup-banner hidden">
+    <strong>Heads up —</strong> this site isn't connected to its schedule data yet.
+    Open <code>config.js</code> and paste in your Apps Script Web App URL.
+    (See the README for the two-minute setup.)
+  </div>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab-btn active" data-tab="availability" role="tab" aria-selected="true">When I'm Free</button>
+    <button class="tab-btn" data-tab="events" role="tab" aria-selected="false">Things I'm Doing</button>
+  </nav>
+
+  <main>
+    <section id="panel-availability" class="tab-panel active" role="tabpanel">
+      <p class="panel-intro">Green means come find me. Tap a day to suggest a time.</p>
+      <div id="availability-list" class="cards">
+        <p class="loading">Loading schedule…</p>
+      </div>
+    </section>
+
+    <section id="panel-events" class="tab-panel" role="tabpanel">
+      <p class="panel-intro">Here's what's already on the calendar — hop in if you're around.</p>
+      <div id="events-list" class="cards">
+        <p class="loading">Loading events…</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      Times shown in <span id="tz-label">Eastern Time</span>.
+      Powered by a static site + a Google Sheet — no app to download, no account needed.
+    </p>
+  </footer>
+
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal" role="dialog" aria-modal="true">
+      <button class="modal-close" id="modal-close" aria-label="Close">&times;</button>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status"></div>
+
+</div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
