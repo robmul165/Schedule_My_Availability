@@ -109,7 +109,8 @@ That's your shareable link.
 
 - **Update your schedule:** just edit the Availability tab in the Google Sheet. No redeploy needed — the site reads live from the sheet every time someone loads it.
 - **See who's interested:** open the Requests tab, or just watch your inbox — you get an email for every submission with their name, contact info, and the time they asked for.
-- **Accept a request:** check the box in the **Accepted** column on that row. A script fires automatically and adds a matching `Busy` row to the Availability tab, so that time is instantly blocked off on the site — no need to go add it by hand. (Unchecking the box doesn't undo it — delete the `Busy` row yourself if you change your mind.) Leave the **Processed** column alone; it's how the script avoids double-booking a busy row if you edit that row again later.
+- **Accept a request:** check the box in the **Accepted** column on that row. A script fires automatically and adds a matching `Busy` row to the Availability tab, so that time is instantly blocked off on the site — no need to go add it by hand. You can accept multiple different requests on the same day, as long as their times don't overlap — each one only blocks its own slice of time, so the rest of the day stays open for other requests. (Unchecking the box doesn't undo it — delete the `Busy` row yourself if you change your mind.) Leave the **Processed** column alone; it's how the script avoids double-booking a busy row if you edit that row again later.
+- **If two requests overlap:** checking "Accepted" on a request that conflicts with something you already accepted automatically unchecks itself and shows a heads-up at the top of the sheet, instead of double-booking you. Resolve the other one first (decline it or delete its `Busy` row), then check the box again.
 - **Decline a request:** just leave the box unchecked, or delete the row.
 
 ---

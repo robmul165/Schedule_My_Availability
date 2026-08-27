@@ -11,7 +11,9 @@
  *                  emails you about it.
  *   3. onEdit()  — when you check the "Accepted" box on a Requests row,
  *                  automatically adds a matching Busy row to Availability
- *                  so that time is blocked on the site. No setup needed —
+ *                  so that time is blocked on the site (unless it conflicts
+ *                  with something already booked, in which case it unchecks
+ *                  itself and leaves a heads-up instead). No setup needed —
  *                  Apps Script wires this up on its own.
  *
  * SETUP: See the project README for step-by-step instructions. In short —
@@ -153,12 +155,74 @@ function handleAcceptedEdit_(e) {
   const name = get('Name');
 
   if (type === 'Request a time' && date && start && end) {
+    if (findBusyOverlap_(date, start, end)) {
+      // Don't double-book: uncheck the box, leave a heads-up, and leave
+      // "Processed" blank so you can accept it later once the conflict is
+      // resolved (e.g. after declining/removing the other booking).
+      e.range.setValue(false);
+      try {
+        SpreadsheetApp.getActiveSpreadsheet().toast(
+          'That time conflicts with something already booked on ' + date + ' — not added. ' +
+          'Resolve the conflicting booking first, then check the box again.',
+          '⚠️ Booking conflict',
+          8
+        );
+      } catch (err) {
+        console.error('toast failed: ' + (err && err.message ? err.message : err));
+      }
+      return;
+    }
     getSheet_(SHEET_NAMES.availability).appendRow(['Busy', date, '', start, end, 'Accepted: ' + name]);
   }
 
   if (processedCol) {
     sheet.getRange(row, processedCol).setValue(new Date());
   }
+}
+
+// True if [start, end) on `date` (all "HH:MM" / "YYYY-MM-DD" strings)
+// overlaps any existing "Busy" row already on the Availability sheet — the
+// same recurring-by-weekday-or-one-off-by-date matching used elsewhere,
+// checked directly against the sheet so it always reflects what's already
+// accepted/blocked.
+function findBusyOverlap_(date, startStr, endStr) {
+  const reqStart = timeStringToMinutes_(startStr);
+  const reqEnd = timeStringToMinutes_(endStr);
+  if (reqStart === null || reqEnd === null || reqEnd <= reqStart) return false;
+
+  const dow = dateStringToDow_(date);
+  const rows = sheetToObjects_(getSheet_(SHEET_NAMES.availability), AVAILABILITY_HEADERS);
+
+  return rows.some(function (r) {
+    if (String(r.Type || '').trim().toLowerCase() !== 'busy') return false;
+
+    const rowDate = formatDateCell_(r.Date);
+    const dayName = String(r.DayOfWeek || '').trim().toLowerCase();
+    const rowDow = dayName && DAY_NAME_TO_NUMBER.hasOwnProperty(dayName) ? DAY_NAME_TO_NUMBER[dayName] : null;
+
+    const matchesThisDate = rowDate === date;
+    const matchesRecurring = !rowDate && rowDow === dow;
+    if (!matchesThisDate && !matchesRecurring) return false;
+
+    const bStart = timeStringToMinutes_(formatTimeCell_(r.Start));
+    const bEnd = timeStringToMinutes_(formatTimeCell_(r.End));
+    if (bStart === null || bEnd === null || bEnd <= bStart) return false;
+
+    return bStart < reqEnd && reqStart < bEnd; // interval overlap test
+  });
+}
+
+function dateStringToDow_(iso) {
+  const parts = String(iso).split('-').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return null;
+  return new Date(parts[0], parts[1] - 1, parts[2]).getDay();
+}
+
+function timeStringToMinutes_(hhmm) {
+  if (!hhmm) return null;
+  const m = String(hhmm).trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
 }
 
 // ----- Reading ------------------------------------------------------------
