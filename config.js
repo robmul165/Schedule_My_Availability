@@ -10,7 +10,7 @@ const CONFIG = {
   siteName: 'Is Rob Free?',
   tagline: "Check my schedule, pick a time, and let's do something.",
   ownerFirstName: 'Rob',
-  timezoneLabel: 'Eastern Time',
+  timezoneLabel: 'EST',
 
   // How many days ahead to show in the "When I'm Free" view.
   daysAhead: 14,
@@ -21,7 +21,7 @@ const CONFIG = {
   // and "Busy" rows (recurring by weekday, or one-off on a specific date)
   // carve chunks out of it. Use '00:00' / '24:00' if you really do want the
   // whole day open by default (including overnight).
-  defaultDayStart: '08:00',
+  defaultDayStart: '00:00',
   defaultDayEnd: '24:00',
 
   // Accent color used throughout the site (hex).

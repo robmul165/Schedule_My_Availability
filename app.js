@@ -120,9 +120,9 @@
       card.appendChild(info);
       card.appendChild(windowsEl);
 
-      if (isFree) {
-        card.addEventListener('click', function () { openRequestModal(day); });
-      }
+      // Every day is clickable, even ones shown as fully busy — the request
+      // form itself doesn't restrict what time someone asks for.
+      card.addEventListener('click', function () { openRequestModal(day); });
 
       container.appendChild(card);
     });
@@ -340,7 +340,9 @@
             '<div class="field"><label>Start</label><input type="time" name="customStart"></div>' +
             '<div class="field"><label>End</label><input type="time" name="customEnd"></div>' +
           '</div>' +
-          '<p class="field-hint">Available: ' + windowsRangeText + '</p>' +
+          '<p class="field-hint">' +
+            (windowsRangeText ? 'Usually free: ' + windowsRangeText + ' — but ask for any time, any day.' : 'Nothing usually free this day, but ask for any time anyway.') +
+          '</p>' +
         '</div>' +
         '<div class="field"><label>What do you want to do?</label><textarea name="message" placeholder="Coffee? Deep philisophical conversations? Schedule now!"></textarea></div>' +
         '<input class="hp-field" tabindex="-1" autocomplete="off" type="text" name="honeypot">' +
@@ -389,11 +391,9 @@
           showToast('End time has to be after the start time.', true);
           return;
         }
-        const fits = day.windows.some(function (w) { return start >= w.start && end <= w.end; });
-        if (!fits) {
-          showToast("That falls outside the free windows for this day (" + windowsRangeText + ').', true);
-          return;
-        }
+        // Intentionally not restricted to day.windows — someone can request
+        // any time, including outside the windows shown; it's still just a
+        // request, so it's fine to let them ask and you decide.
       } else {
         if (!slotStartSelect.value) {
           showToast('No start times available for that length — try a shorter block or an exact time.', true);
