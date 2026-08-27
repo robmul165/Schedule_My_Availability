@@ -1,7 +1,7 @@
 /**
  * "Is Rob Free?" — front-end logic.
- * Fetches availability/events from the Apps Script backend, renders them,
- * and submits "request a time" / "join event" forms back to it.
+ * Fetches availability from the Apps Script backend, renders it, and
+ * submits "request a time" forms back to it.
  * No build step, no dependencies — plain browser JS.
  */
 
@@ -10,7 +10,6 @@
 
   const state = {
     availability: [],
-    events: [],
   };
 
   const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -26,13 +25,11 @@
     document.getElementById('tz-label').textContent = CONFIG.timezoneLabel;
     document.title = CONFIG.siteName;
 
-    setupTabs();
     setupModal();
 
     if (!CONFIG.appsScriptUrl || CONFIG.appsScriptUrl.indexOf('PASTE_YOUR') === 0) {
       document.getElementById('setup-banner').classList.remove('hidden');
       renderEmpty('availability-list', 'Schedule not connected yet.');
-      renderEmpty('events-list', 'Events not connected yet.');
       return;
     }
 
@@ -44,33 +41,11 @@
       .then(function (data) {
         if (!data.ok) throw new Error(data.error || 'Unknown error loading data.');
         state.availability = data.availability || [];
-        state.events = data.events || [];
         renderAvailability();
-        renderEvents();
       })
       .catch(function (err) {
         renderEmpty('availability-list', "Couldn't load the schedule (" + err.message + ").");
-        renderEmpty('events-list', "Couldn't load events (" + err.message + ").");
       });
-  }
-
-  // ---------- Tabs ----------
-
-  function setupTabs() {
-    const buttons = document.querySelectorAll('.tab-btn');
-    buttons.forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        buttons.forEach(function (b) {
-          b.classList.remove('active');
-          b.setAttribute('aria-selected', 'false');
-        });
-        btn.classList.add('active');
-        btn.setAttribute('aria-selected', 'true');
-
-        document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
-        document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
-      });
-    });
   }
 
   // ---------- Availability rendering ----------
@@ -201,74 +176,6 @@
       });
     }
     return result;
-  }
-
-  // ---------- Events rendering ----------
-
-  function renderEvents() {
-    const container = document.getElementById('events-list');
-    const upcoming = (state.events || [])
-      .filter(function (ev) { return ev.date && toMinutes(ev.start) !== null; })
-      .filter(function (ev) { return eventDateTime(ev) >= new Date(); })
-      .sort(function (a, b) { return eventDateTime(a) - eventDateTime(b); });
-
-    if (!upcoming.length) {
-      renderEmpty('events-list', "Nothing on the calendar right now — schedule quick!");
-      return;
-    }
-
-    container.innerHTML = '';
-    upcoming.forEach(function (ev) {
-      const card = document.createElement('div');
-      card.className = 'event-card';
-
-      const top = document.createElement('div');
-      top.className = 'event-top';
-      const title = document.createElement('h3');
-      title.className = 'event-title';
-      title.textContent = ev.title;
-      const when = document.createElement('div');
-      when.className = 'event-when';
-      when.textContent = formatFriendlyDate(parseISODate(ev.date)) + ' · ' + minutesToLabel(toMinutes(ev.start));
-      top.appendChild(title);
-      top.appendChild(when);
-      card.appendChild(top);
-
-      if (ev.location) {
-        const meta = document.createElement('div');
-        meta.className = 'event-meta';
-        meta.textContent = '📍 ' + ev.location;
-        card.appendChild(meta);
-      }
-
-      if (ev.description) {
-        const desc = document.createElement('div');
-        desc.className = 'event-desc';
-        desc.textContent = ev.description;
-        card.appendChild(desc);
-      }
-
-      const actions = document.createElement('div');
-      actions.className = 'event-actions';
-
-      const joinedEl = document.createElement('div');
-      joinedEl.className = 'event-joined';
-      const full = ev.capacity !== null && ev.joined >= ev.capacity;
-      joinedEl.textContent = ev.capacity !== null
-        ? ev.joined + ' / ' + ev.capacity + ' joined'
-        : (ev.joined > 0 ? ev.joined + ' joined so far' : '');
-      actions.appendChild(joinedEl);
-
-      const joinBtn = document.createElement('button');
-      joinBtn.className = 'btn';
-      joinBtn.textContent = full ? "Full" : "I'm in!";
-      joinBtn.disabled = full;
-      if (!full) joinBtn.addEventListener('click', function () { openJoinModal(ev); });
-      actions.appendChild(joinBtn);
-
-      card.appendChild(actions);
-      container.appendChild(card);
-    });
   }
 
   function renderEmpty(containerId, message) {
@@ -453,38 +360,6 @@
     return hourLabel + (hours === 1 ? ' hr' : ' hrs');
   }
 
-  function openJoinModal(ev) {
-    openModal(
-      '<h2>' + escapeHTML(ev.title) + '</h2>' +
-      '<p class="modal-sub">' + formatFriendlyDate(parseISODate(ev.date)) + ' · ' + minutesToLabel(toMinutes(ev.start)) + '</p>' +
-      '<form id="join-form">' +
-        '<div class="field"><label>Your name</label><input type="text" name="name" required></div>' +
-        '<div class="field"><label>Best way to reach you (phone, email, or handle)</label><input type="text" name="contact" required></div>' +
-        '<div class="field"><label>Anything to add? (optional)</label><textarea name="message" placeholder="Can\'t wait!"></textarea></div>' +
-        '<input class="hp-field" tabindex="-1" autocomplete="off" type="text" name="honeypot">' +
-        '<div class="modal-actions">' +
-          '<button type="button" class="btn btn-secondary" id="join-cancel">Cancel</button>' +
-          '<button type="submit" class="btn">I\'m in!</button>' +
-        '</div>' +
-      '</form>'
-    );
-
-    document.getElementById('join-cancel').addEventListener('click', closeModal);
-    document.getElementById('join-form').addEventListener('submit', function (e) {
-      e.preventDefault();
-      const form = e.target;
-      submitPayload({
-        action: 'join',
-        name: form.name.value.trim(),
-        contact: form.contact.value.trim(),
-        eventId: ev.id,
-        eventTitle: ev.title,
-        message: form.message.value.trim(),
-        honeypot: form.honeypot.value,
-      }, form.querySelector('button[type="submit"]'), "You're in! " + CONFIG.ownerFirstName + " will see you there.");
-    });
-  }
-
   function submitPayload(payload, submitBtn, successMessage) {
     submitBtn.disabled = true;
     submitBtn.textContent = 'Sending…';
@@ -499,7 +374,7 @@
         if (!data.ok) throw new Error(data.error || 'Something went wrong.');
         closeModal();
         showToast(successMessage, false);
-        loadData(); // refresh join counts, etc.
+        loadData(); // refresh availability in case it changed
       })
       .catch(function (err) {
         submitBtn.disabled = false;
@@ -550,20 +425,8 @@
     return y + '-' + m + '-' + day;
   }
 
-  function parseISODate(iso) {
-    const parts = String(iso).split('-').map(Number);
-    return new Date(parts[0], parts[1] - 1, parts[2]);
-  }
-
   function formatFriendlyDate(d) {
     return DAY_NAMES_SHORT[d.getDay()] + ', ' + d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  }
-
-  function eventDateTime(ev) {
-    const d = parseISODate(ev.date);
-    const mins = toMinutes(ev.start) || 0;
-    d.setMinutes(d.getMinutes() + mins);
-    return d;
   }
 
   function toMinutes(hhmm) {
@@ -616,11 +479,5 @@
       }
     });
     return merged;
-  }
-
-  function escapeHTML(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
   }
 })();

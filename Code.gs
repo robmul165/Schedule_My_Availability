@@ -2,42 +2,46 @@
  * "Is Rob Free?" — Google Apps Script backend
  * ---------------------------------------------
  * This script turns a Google Sheet into a tiny free "database + API" for the
- * static site. It does two things:
+ * static site. It does three things:
  *
- *   1. doGet()  — reads the "Availability" and "Events" tabs and returns
- *                 them as JSON so the website can render them.
- *   2. doPost() — receives a "request a time" or "join an event" submission
- *                 from the website and appends it as a new row on the
- *                 "Requests" tab.
+ *   1. doGet()   — reads the "Availability" tab and returns it as JSON so
+ *                  the website can render your schedule.
+ *   2. doPost()  — receives a "request a time" submission from the website,
+ *                  appends it as a new row on the "Requests" tab, and
+ *                  emails you about it.
+ *   3. onEdit()  — when you check the "Accepted" box on a Requests row,
+ *                  automatically adds a matching Busy row to Availability
+ *                  so that time is blocked on the site. No setup needed —
+ *                  Apps Script wires this up on its own.
  *
  * SETUP: See the project README for step-by-step instructions. In short —
  * paste this whole file into Extensions > Apps Script on your Google Sheet,
  * then Deploy > New deployment > Web app (Execute as: Me, Who has access:
- * Anyone), and paste the resulting URL into js/config.js as appsScriptUrl.
- *
- * You do not need to edit anything below unless you want to change the
- * sheet/tab names or add new fields.
+ * Anyone), and paste the resulting URL into config.js as appsScriptUrl.
  */
 
 // ----- Configuration ---------------------------------------------------
 
 const SHEET_NAMES = {
   availability: 'Availability',
-  events: 'Events',
   requests: 'Requests',
 };
 
 const TIMEZONE = 'America/New_York';
 
-// Where to send an email whenever someone submits a request or joins an
-// event. Leave blank ('') to turn notifications off.
+// Where to send an email whenever someone submits a request. Leave blank
+// ('') to turn notifications off.
 const NOTIFY_EMAIL = 'robmul165@gmail.com';
 
 // Column headers expected on each tab (row 1). Order doesn't matter as
 // long as the header text matches exactly.
 const AVAILABILITY_HEADERS = ['Type', 'Date', 'DayOfWeek', 'Start', 'End', 'Note'];
-const EVENTS_HEADERS = ['ID', 'Date', 'Start', 'End', 'Title', 'Location', 'Description', 'Link', 'Capacity'];
-const REQUESTS_HEADERS = ['Timestamp', 'Type', 'Name', 'Contact', 'Date', 'Start', 'End', 'EventId', 'EventTitle', 'Message'];
+// "Accepted" and "Processed" support the auto-accept flow: check the
+// "Accepted" box on a request row and onEdit() below automatically adds a
+// matching Busy row to the Availability sheet. "Processed" is filled in
+// automatically once that's happened, so re-editing the row (or Sheets
+// re-firing onEdit) never adds the same Busy row twice — leave it alone.
+const REQUESTS_HEADERS = ['Timestamp', 'Type', 'Name', 'Contact', 'Date', 'Start', 'End', 'Message', 'Accepted', 'Processed'];
 
 const DAY_NAME_TO_NUMBER = {
   sunday: 0, sun: 0,
@@ -55,19 +59,12 @@ function doGet(e) {
   try {
     ensureSheetsExist_();
     const availability = readAvailability_();
-    const events = readEvents_();
-    const joinCounts = countJoinsByEvent_();
-
-    events.forEach(function (ev) {
-      ev.joined = joinCounts[ev.id] || 0;
-    });
 
     return jsonOutput_({
       ok: true,
       generatedAt: new Date().toISOString(),
       timezone: TIMEZONE,
       availability: availability,
-      events: events,
     });
   } catch (err) {
     return jsonOutput_({ ok: false, error: String(err && err.message ? err.message : err) });
@@ -88,35 +85,19 @@ function doPost(e) {
       return jsonOutput_({ ok: true });
     }
 
-    const action = payload.action;
-    let fields;
-    if (action === 'request') {
-      fields = {
-        type: 'Request a time',
-        name: payload.name,
-        contact: payload.contact,
-        date: payload.date,
-        start: payload.start,
-        end: payload.end,
-        eventId: '',
-        eventTitle: '',
-        message: payload.message,
-      };
-    } else if (action === 'join') {
-      fields = {
-        type: 'Join event',
-        name: payload.name,
-        contact: payload.contact,
-        date: '',
-        start: '',
-        end: '',
-        eventId: payload.eventId,
-        eventTitle: payload.eventTitle,
-        message: payload.message,
-      };
-    } else {
-      throw new Error('Unknown action: ' + action);
+    if (payload.action !== 'request') {
+      throw new Error('Unknown action: ' + payload.action);
     }
+
+    const fields = {
+      type: 'Request a time',
+      name: payload.name,
+      contact: payload.contact,
+      date: payload.date,
+      start: payload.start,
+      end: payload.end,
+      message: payload.message,
+    };
 
     appendRequestRow_(fields);
     notifyOwner_(fields);
@@ -124,6 +105,59 @@ function doPost(e) {
     return jsonOutput_({ ok: true });
   } catch (err) {
     return jsonOutput_({ ok: false, error: String(err && err.message ? err.message : err) });
+  }
+}
+
+// Simple trigger: Apps Script recognizes this exact function name and fires
+// it automatically on every edit to the spreadsheet — no manual trigger
+// setup required. Runs as whoever is editing the sheet (you), with enough
+// permission to read/write other tabs in this same spreadsheet.
+function onEdit(e) {
+  try {
+    handleAcceptedEdit_(e);
+  } catch (err) {
+    console.error('onEdit failed: ' + (err && err.message ? err.message : err));
+  }
+}
+
+function handleAcceptedEdit_(e) {
+  if (!e || !e.range) return;
+  const sheet = e.range.getSheet();
+  if (sheet.getName() !== SHEET_NAMES.requests) return;
+  if (e.range.getRow() === 1) return; // header row
+
+  const lastCol = sheet.getLastColumn();
+  const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) { return String(h).trim(); });
+  const acceptedCol = headerRow.indexOf('Accepted') + 1;
+  const processedCol = headerRow.indexOf('Processed') + 1;
+  if (!acceptedCol || e.range.getColumn() !== acceptedCol) return;
+
+  const isAccepted = e.range.getValue() === true || String(e.range.getValue()).trim().toUpperCase() === 'TRUE';
+  if (!isAccepted) return; // only act when checked ON — unchecking doesn't undo the Busy row
+
+  const row = e.range.getRow();
+  if (processedCol && String(sheet.getRange(row, processedCol).getValue()).trim() !== '') {
+    return; // already handled this row — never add the Busy row twice
+  }
+
+  const values = sheet.getRange(row, 1, 1, lastCol).getValues()[0];
+  const get = function (name) {
+    const idx = headerRow.indexOf(name);
+    return idx === -1 ? '' : values[idx];
+  };
+
+  const type = get('Type');
+  const date = get('Date');
+  const start = get('Start');
+  const end = get('End');
+  const name = get('Name');
+
+  if (type === 'Request a time' && date && start && end) {
+    getSheet_(SHEET_NAMES.availability).appendRow(['Busy', date, '', start, end, 'Accepted: ' + name]);
+  }
+
+  if (processedCol) {
+    sheet.getRange(row, processedCol).setValue(new Date());
   }
 }
 
@@ -147,36 +181,6 @@ function readAvailability_() {
     .filter(function (r) { return r.start && r.end && (r.date || r.dayOfWeek !== null); });
 }
 
-function readEvents_() {
-  const rows = sheetToObjects_(getSheet_(SHEET_NAMES.events), EVENTS_HEADERS);
-  return rows
-    .filter(function (r) { return r.Title && r.Date; })
-    .map(function (r, idx) {
-      return {
-        id: r.ID ? String(r.ID).trim() : 'evt-' + (idx + 1),
-        date: formatDateCell_(r.Date),
-        start: formatTimeCell_(r.Start),
-        end: formatTimeCell_(r.End),
-        title: String(r.Title).trim(),
-        location: r.Location ? String(r.Location).trim() : '',
-        description: r.Description ? String(r.Description).trim() : '',
-        link: r.Link ? String(r.Link).trim() : '',
-        capacity: r.Capacity !== '' && r.Capacity !== null && !isNaN(r.Capacity) ? Number(r.Capacity) : null,
-      };
-    });
-}
-
-function countJoinsByEvent_() {
-  const rows = sheetToObjects_(getSheet_(SHEET_NAMES.requests), REQUESTS_HEADERS);
-  const counts = {};
-  rows.forEach(function (r) {
-    if (r.Type === 'Join event' && r.EventId) {
-      counts[r.EventId] = (counts[r.EventId] || 0) + 1;
-    }
-  });
-  return counts;
-}
-
 // ----- Writing --------------------------------------------------------
 
 function appendRequestRow_(fields) {
@@ -190,36 +194,25 @@ function appendRequestRow_(fields) {
     fields.date || '',
     fields.start || '',
     fields.end || '',
-    fields.eventId || '',
-    fields.eventTitle || '',
     fields.message || '',
+    // "Accepted" / "Processed" intentionally left blank — you check the box.
   ]);
 }
 
-// Emails NOTIFY_EMAIL about a new request/join. Failures here (e.g. mail
-// quota) are logged but never break the response the site sees — the row
-// is already saved on the sheet either way.
+// Emails NOTIFY_EMAIL about a new request. Failures here (e.g. mail quota)
+// are logged but never break the response the site sees — the row is
+// already saved on the sheet either way.
 function notifyOwner_(fields) {
   if (!NOTIFY_EMAIL) return;
   try {
-    let subject, body;
-    if (fields.type === 'Join event') {
-      subject = fields.name + ' wants to join "' + fields.eventTitle + '"';
-      body =
-        'Name: ' + fields.name + '\n' +
-        'Contact: ' + fields.contact + '\n' +
-        'Event: ' + fields.eventTitle + '\n' +
-        (fields.message ? '\nMessage: ' + fields.message + '\n' : '');
-    } else {
-      subject = fields.name + ' requested a time — ' + fields.date + ' ' + fields.start + '-' + fields.end;
-      body =
-        'Name: ' + fields.name + '\n' +
-        'Contact: ' + fields.contact + '\n' +
-        'Date: ' + fields.date + '\n' +
-        'Time: ' + fields.start + '–' + fields.end + '\n' +
-        (fields.message ? '\nMessage: ' + fields.message + '\n' : '');
-    }
-    body += '\n(Full details are on the Requests tab.)';
+    const subject = fields.name + ' requested a time — ' + fields.date + ' ' + fields.start + '-' + fields.end;
+    let body =
+      'Name: ' + fields.name + '\n' +
+      'Contact: ' + fields.contact + '\n' +
+      'Date: ' + fields.date + '\n' +
+      'Time: ' + fields.start + '–' + fields.end + '\n' +
+      (fields.message ? '\nMessage: ' + fields.message + '\n' : '');
+    body += '\n(Check the box in the Accepted column on the Requests tab to accept and block that time.)';
     MailApp.sendEmail(NOTIFY_EMAIL, subject, body);
   } catch (err) {
     console.error('notifyOwner_ failed: ' + (err && err.message ? err.message : err));
@@ -239,12 +232,13 @@ function getSheet_(name) {
 
 // Creates any missing tabs with the correct header row so a fresh copy of
 // this script "just works" the first time it's run. Never overwrites data
-// on an existing tab.
+// on an existing tab — but does add any newly-introduced header columns
+// (like "Accepted"/"Processed") to an existing Requests tab automatically.
 function ensureSheetsExist_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   createIfMissing_(ss, SHEET_NAMES.availability, AVAILABILITY_HEADERS);
-  createIfMissing_(ss, SHEET_NAMES.events, EVENTS_HEADERS);
   createIfMissing_(ss, SHEET_NAMES.requests, REQUESTS_HEADERS);
+  ensureHeaderColumns_(getSheet_(SHEET_NAMES.requests), REQUESTS_HEADERS);
 }
 
 function createIfMissing_(ss, name, headers) {
@@ -254,6 +248,32 @@ function createIfMissing_(ss, name, headers) {
     sheet.appendRow(headers);
     sheet.setFrozenRows(1);
   }
+}
+
+// Adds any header columns from `headers` that don't already exist on
+// `sheet`, appending them to the right of the existing header row. Lets us
+// evolve the Requests sheet's columns (e.g. adding "Accepted") without
+// requiring existing users to manually edit their sheet. "Accepted" also
+// gets real checkboxes for a few hundred rows so it's clickable right away.
+function ensureHeaderColumns_(sheet, headers) {
+  const lastCol = sheet.getLastColumn();
+  const existing = lastCol > 0
+    ? sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) { return String(h).trim(); })
+    : [];
+
+  headers.forEach(function (header) {
+    if (existing.indexOf(header) !== -1) return;
+    const colIndex = sheet.getLastColumn() + 1;
+    sheet.getRange(1, colIndex).setValue(header);
+    existing.push(header);
+    if (header === 'Accepted') {
+      try {
+        sheet.getRange(2, colIndex, 500, 1).insertCheckboxes();
+      } catch (err) {
+        console.error('insertCheckboxes failed: ' + (err && err.message ? err.message : err));
+      }
+    }
+  });
 }
 
 function sheetToObjects_(sheet, expectedHeaders) {

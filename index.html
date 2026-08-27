@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Is Rob Free?</title>
-<meta name="description" content="Check my schedule and grab a time, or join something I'm already doing." />
+<meta name="description" content="Check my schedule and grab a time." />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%93%85</text></svg>" />
 <link rel="stylesheet" href="styles.css" />
 </head>
@@ -23,23 +23,11 @@
     (See the README for the two-minute setup.)
   </div>
 
-  <nav class="tabs" role="tablist">
-    <button class="tab-btn active" data-tab="availability" role="tab" aria-selected="true">When I'm Free</button>
-    <button class="tab-btn" data-tab="events" role="tab" aria-selected="false">Things I'm Doing</button>
-  </nav>
-
   <main>
-    <section id="panel-availability" class="tab-panel active" role="tabpanel">
+    <section id="panel-availability">
       <p class="panel-intro">Green means I am available. Tap a day to suggest a time.</p>
       <div id="availability-list" class="cards">
         <p class="loading">Loading schedule…</p>
-      </div>
-    </section>
-
-    <section id="panel-events" class="tab-panel" role="tabpanel">
-      <p class="panel-intro">Here's what's already on the calendar.</p>
-      <div id="events-list" class="cards">
-        <p class="loading">Loading events…</p>
       </div>
     </section>
   </main>
