@@ -214,6 +214,26 @@ footer { margin-top: 28px; text-align: center; color: var(--ink-soft); font-size
 .field-row { display: flex; gap: 10px; }
 .field-row .field { flex: 1; }
 
+.time-mode-toggle { display: flex; gap: 8px; }
+.mode-btn {
+  flex: 1;
+  border: 1.5px solid var(--card-border);
+  background: var(--bg);
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 9px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.mode-btn.active { border-color: var(--accent); color: var(--accent-dark); background: var(--free-bg); }
+
+.time-mode-panel { margin-bottom: 12px; }
+.time-mode-panel.hidden { display: none; }
+
+.field-hint { margin: 4px 0 0; font-size: 0.78rem; color: var(--ink-soft); }
+
 .hp-field { position: absolute; left: -9999px; top: -9999px; }
 
 .modal-actions { margin-top: 6px; display: flex; gap: 10px; }

@@ -266,10 +266,18 @@
   }
 
   function openRequestModal(day) {
-    const windowOptions = day.windows.map(function (w) {
-      return '<option value="' + w.start + '-' + w.end + '">' +
-        minutesToLabel(w.start) + '–' + minutesToLabel(w.end) + '</option>';
+    const durationOptions = CONFIG.slotDurationOptions || [30, 60, 90, 120];
+    const defaultDuration = CONFIG.defaultSlotDuration || 60;
+    const stepMinutes = CONFIG.slotStepMinutes || 30;
+
+    const durationOptionsHTML = durationOptions.map(function (mins) {
+      return '<option value="' + mins + '"' + (mins === defaultDuration ? ' selected' : '') + '>' +
+        formatDuration(mins) + '</option>';
     }).join('');
+
+    const windowsRangeText = day.windows.map(function (w) {
+      return minutesToLabel(w.start) + '–' + minutesToLabel(w.end);
+    }).join(', ');
 
     openModal(
       '<h2>Request a time</h2>' +
@@ -277,8 +285,29 @@
       '<form id="request-form">' +
         '<div class="field"><label>Your name</label><input type="text" name="name" required></div>' +
         '<div class="field"><label>Best way to reach you (phone, email, or handle)</label><input type="text" name="contact" required></div>' +
-        '<div class="field"><label>Which window works?</label>' +
-          '<select name="windowChoice">' + windowOptions + '</select>' +
+        '<div class="field">' +
+          '<label>How would you like to pick a time?</label>' +
+          '<div class="time-mode-toggle">' +
+            '<button type="button" class="mode-btn active" data-mode="slot">Pick a time block</button>' +
+            '<button type="button" class="mode-btn" data-mode="custom">Choose exact time</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="time-mode-panel" data-mode-panel="slot">' +
+          '<div class="field-row">' +
+            '<div class="field"><label>Length</label>' +
+              '<select name="duration">' + durationOptionsHTML + '</select>' +
+            '</div>' +
+            '<div class="field"><label>Start time</label>' +
+              '<select name="slotStart">' + buildSlotOptionsHTML(day.windows, defaultDuration, stepMinutes) + '</select>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="time-mode-panel hidden" data-mode-panel="custom">' +
+          '<div class="field-row">' +
+            '<div class="field"><label>Start</label><input type="time" name="customStart"></div>' +
+            '<div class="field"><label>End</label><input type="time" name="customEnd"></div>' +
+          '</div>' +
+          '<p class="field-hint">Available: ' + windowsRangeText + '</p>' +
         '</div>' +
         '<div class="field"><label>What do you want to do? (optional)</label><textarea name="message" placeholder="Coffee? A walk? Surprise me."></textarea></div>' +
         '<input class="hp-field" tabindex="-1" autocomplete="off" type="text" name="honeypot">' +
@@ -289,22 +318,106 @@
       '</form>'
     );
 
+    const form = document.getElementById('request-form');
+    const modeButtons = form.querySelectorAll('.mode-btn');
+    const modePanels = form.querySelectorAll('.time-mode-panel');
+    const durationSelect = form.querySelector('select[name="duration"]');
+    const slotStartSelect = form.querySelector('select[name="slotStart"]');
+
+    modeButtons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        modeButtons.forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        const mode = btn.dataset.mode;
+        modePanels.forEach(function (panel) {
+          panel.classList.toggle('hidden', panel.dataset.modePanel !== mode);
+        });
+      });
+    });
+
+    durationSelect.addEventListener('change', function () {
+      slotStartSelect.innerHTML = buildSlotOptionsHTML(day.windows, Number(durationSelect.value), stepMinutes);
+    });
+
     document.getElementById('request-cancel').addEventListener('click', closeModal);
-    document.getElementById('request-form').addEventListener('submit', function (e) {
+    form.addEventListener('submit', function (e) {
       e.preventDefault();
-      const form = e.target;
-      const [start, end] = form.windowChoice.value.split('-');
+      const mode = form.querySelector('.mode-btn.active').dataset.mode;
+
+      let start, end;
+      if (mode === 'custom') {
+        start = toMinutes(form.customStart.value);
+        end = toMinutes(form.customEnd.value);
+        if (start === null || end === null) {
+          showToast('Pick a start and end time.', true);
+          return;
+        }
+        if (end <= start) {
+          showToast('End time has to be after the start time.', true);
+          return;
+        }
+        const fits = day.windows.some(function (w) { return start >= w.start && end <= w.end; });
+        if (!fits) {
+          showToast("That falls outside the free windows for this day (" + windowsRangeText + ').', true);
+          return;
+        }
+      } else {
+        if (!slotStartSelect.value) {
+          showToast('No start times available for that length — try a shorter block or an exact time.', true);
+          return;
+        }
+        const [s, e2] = slotStartSelect.value.split('-');
+        start = Number(s);
+        end = Number(e2);
+      }
+
       submitPayload({
         action: 'request',
         name: form.name.value.trim(),
         contact: form.contact.value.trim(),
         date: day.date,
-        start: minutesToHHMM(Number(start)),
-        end: minutesToHHMM(Number(end)),
+        start: minutesToHHMM(start),
+        end: minutesToHHMM(end),
         message: form.message.value.trim(),
         honeypot: form.honeypot.value,
       }, form.querySelector('button[type="submit"]'), 'Request sent! ' + CONFIG.ownerFirstName + ' will get back to you.');
     });
+  }
+
+  // Build <option> elements for every valid start time of `durationMinutes`
+  // within `windows`, stepping every `stepMinutes`. Always includes the
+  // latest possible start in each window even if the step doesn't land on it,
+  // so the full window remains reachable.
+  function buildSlotOptionsHTML(windows, durationMinutes, stepMinutes) {
+    const slots = [];
+    windows.forEach(function (w) {
+      const lastStart = w.end - durationMinutes;
+      if (lastStart < w.start) return; // window too short for this duration
+      for (let s = w.start; s <= lastStart; s += stepMinutes) {
+        slots.push({ start: s, end: s + durationMinutes });
+      }
+      // Make sure the latest possible start is reachable even when the step
+      // size doesn't divide evenly into the window.
+      if (slots[slots.length - 1].start !== lastStart) {
+        slots.push({ start: lastStart, end: w.end });
+      }
+    });
+
+    if (!slots.length) {
+      return '<option value="" disabled selected>No times of that length available</option>';
+    }
+
+    return slots.map(function (s) {
+      return '<option value="' + s.start + '-' + s.end + '">' +
+        minutesToLabel(s.start) + '–' + minutesToLabel(s.end) + '</option>';
+    }).join('');
+  }
+
+  function formatDuration(mins) {
+    if (mins < 60) return mins + ' min';
+    const hours = mins / 60;
+    const hourLabel = (hours % 1 === 0) ? String(hours) : hours.toFixed(1);
+    return hourLabel + (hours === 1 ? ' hr' : ' hrs');
   }
 
   function openJoinModal(ev) {

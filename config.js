@@ -17,4 +17,13 @@ const CONFIG = {
 
   // Accent color used throughout the site (hex).
   accentColor: '#ff6b6b',
+
+  // ----- Time-slot picker (in the "Request a time" modal) -----
+  // Block lengths (in minutes) offered when someone picks "Pick a time block".
+  slotDurationOptions: [30, 60, 90, 120],
+  // Which of the above is selected by default.
+  defaultSlotDuration: 60,
+  // Spacing (in minutes) between selectable start times within a free window.
+  // Smaller = more granular start-time choices.
+  slotStepMinutes: 30,
 };
