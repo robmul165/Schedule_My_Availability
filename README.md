@@ -32,21 +32,29 @@ Nothing here costs money. GitHub Pages and Google Apps Script are both free at t
    |------|------|-----------|-------|-----|------|
 
    - `Type`: `Free` or `Busy`
-   - `Date`: leave **blank** for a recurring weekly slot, or fill in a specific date (`2026-09-05`) to override just that day
-   - `DayOfWeek`: only used when `Date` is blank — e.g. `Monday`, `Tuesday`... (used for recurring weekly availability)
+   - `Date`: leave **blank** for a recurring weekly row, or fill in a specific date (`2026-09-05`) to affect just that one day
+   - `DayOfWeek`: only used when `Date` is blank — e.g. `Monday`, `Tuesday`... (used for recurring weekly rows)
    - `Start` / `End`: 24-hour `HH:MM`, e.g. `18:00` and `21:30`
    - `Note`: optional, not shown on the site yet but handy for your own reference
+
+   **Every day defaults to open** across `defaultDayStart`–`defaultDayEnd` in `js/config.js` (8am–10pm out of the box) — you don't need to add any rows at all until you want to say when you're *not* free. Add `Busy` rows for the chunks you're unavailable:
+
+   - Recurring every week: `Busy`, blank `Date`, a `DayOfWeek` — e.g. "every Wednesday I'm at work 9–5."
+   - Just one day: `Busy`, a specific `Date`, blank `DayOfWeek`.
+
+   You can still add `Free` rows if you want — a recurring `Free` row for a weekday *replaces* the default hours for that weekday (handy if, say, Sundays you're only free 11am–8pm), and a one-off `Free` row on a specific date adds extra time on top of whatever's already open that day (e.g. an early morning before a trip).
+
+   **Important:** on any one-off row, leave `DayOfWeek` blank. `Date` always wins — if a row somehow has both filled in, `DayOfWeek` is ignored and it only affects that one date — but leaving it blank keeps the sheet unambiguous, especially if you copy an existing recurring row as a starting point and forget to clear that cell.
 
    Example rows:
 
    | Type | Date | DayOfWeek | Start | End | Note |
    |------|------|-----------|-------|-----|------|
-   | Free |  | Monday | 18:00 | 21:00 | usually free weeknights |
-   | Free |  | Wednesday | 18:00 | 21:00 | |
-   | Free |  | Saturday | 11:00 | 22:00 | |
-   | Free |  | Sunday | 11:00 | 20:00 | |
-   | Busy | 2026-09-07 |  | 18:00 | 21:00 | nope, working late that day |
-   | Free | 2026-09-10 |  | 08:00 | 10:00 | extra morning free before a trip |
+   | Busy |  | Wednesday | 09:00 | 17:00 | at the office |
+   | Busy |  | Monday | 09:00 | 17:00 | at the office |
+   | Busy | 2026-09-07 |  | 18:00 | 21:00 | dinner with the in-laws, just that night |
+   | Free |  | Sunday | 11:00 | 20:00 | shorter day than usual |
+   | Free | 2026-09-10 |  | 06:00 | 08:00 | extra morning free before a trip |
 
 3. Add a second tab named **Events**. Header row:
 
@@ -86,7 +94,7 @@ Nothing here costs money. GitHub Pages and Google Apps Script are both free at t
 
 1. Open `js/config.js` in this project.
 2. Paste your Web app URL into `appsScriptUrl`.
-3. Optionally tweak `siteName`, `tagline`, `ownerFirstName`, `timezoneLabel`, `daysAhead`, and `accentColor` to make it yours.
+3. Optionally tweak `siteName`, `tagline`, `ownerFirstName`, `timezoneLabel`, `daysAhead`, `defaultDayStart`/`defaultDayEnd`, and `accentColor` to make it yours.
 
 ### 4. Put it on GitHub Pages
 

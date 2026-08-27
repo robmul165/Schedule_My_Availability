@@ -128,28 +128,61 @@
     });
   }
 
-  // Merge recurring weekly availability with date-specific overrides for
-  // the next `daysAhead` days, returning free windows per day.
+  // Builds free windows per day for the next `daysAhead` days.
+  //
+  // The baseline for every day is CONFIG.defaultDayStart–defaultDayEnd (the
+  // whole day is open unless you say otherwise) — you only need the
+  // Availability sheet at all to carve out "Busy" chunks, recurring by
+  // weekday or one-off on a specific date. A recurring "Free" row for a
+  // weekday still works and overrides the default bounds for that weekday,
+  // for backward compatibility / days with different default hours.
+  //
+  // Precedence rule, applied consistently to both "Free" and "Busy" rows:
+  // a row with `Date` filled in is ALWAYS treated as one-off for that exact
+  // date only — `DayOfWeek` is ignored whenever `Date` is present. This
+  // matters if you ever copy a recurring row as a template for a one-off
+  // entry and forget to clear DayOfWeek: it still only affects that one date,
+  // never "every Wednesday" (etc).
   function buildDailyAvailability(rows, daysAhead) {
     const today = startOfToday();
     const result = [];
+    const defaultStart = toMinutes(CONFIG.defaultDayStart || '00:00');
+    const defaultEnd = toMinutes(CONFIG.defaultDayEnd || '24:00');
 
     for (let i = 0; i < daysAhead; i++) {
       const d = addDays(today, i);
       const iso = toISODate(d);
       const dow = d.getDay();
 
-      let windows = rows
+      // Recurring "free" rows for this weekday (Date blank) override the
+      // default day bounds, if any are defined for this weekday.
+      const recurringFree = rows
         .filter(function (r) { return r.type === 'free' && !r.date && r.dayOfWeek === dow; })
         .map(function (r) { return { start: toMinutes(r.start), end: toMinutes(r.end) }; })
         .filter(function (w) { return w.start !== null && w.end !== null && w.end > w.start; });
 
+      let windows = recurringFree.length
+        ? recurringFree
+        : (defaultStart !== null && defaultEnd !== null && defaultEnd > defaultStart
+          ? [{ start: defaultStart, end: defaultEnd }]
+          : []);
+
+      // Recurring "busy" rows for this weekday (Date blank) — e.g. "every
+      // Wednesday 9–5 I'm at work".
+      rows
+        .filter(function (r) { return r.type === 'busy' && !r.date && r.dayOfWeek === dow; })
+        .forEach(function (r) {
+          windows = subtractInterval(windows, toMinutes(r.start), toMinutes(r.end));
+        });
+
+      // One-off "busy" override for this exact date.
       rows
         .filter(function (r) { return r.type === 'busy' && r.date === iso; })
         .forEach(function (r) {
           windows = subtractInterval(windows, toMinutes(r.start), toMinutes(r.end));
         });
 
+      // One-off "free" addition for this exact date (e.g. extra hours before a trip).
       rows
         .filter(function (r) { return r.type === 'free' && r.date === iso; })
         .forEach(function (r) {

@@ -15,6 +15,15 @@ const CONFIG = {
   // How many days ahead to show in the "When I'm Free" view.
   daysAhead: 14,
 
+  // Default daily window, used for every day UNLESS the Availability sheet
+  // has a recurring "Free" row for that weekday. You don't need to list
+  // "Free" rows at all anymore — every day starts open across this range,
+  // and "Busy" rows (recurring by weekday, or one-off on a specific date)
+  // carve chunks out of it. Use '00:00' / '24:00' if you really do want the
+  // whole day open by default (including overnight).
+  defaultDayStart: '08:00',
+  defaultDayEnd: '22:00',
+
   // Accent color used throughout the site (hex).
   accentColor: '#ff6b6b',
 
