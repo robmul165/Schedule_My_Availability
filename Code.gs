@@ -29,6 +29,10 @@ const SHEET_NAMES = {
 
 const TIMEZONE = 'America/New_York';
 
+// Where to send an email whenever someone submits a request or joins an
+// event. Leave blank ('') to turn notifications off.
+const NOTIFY_EMAIL = 'robmul165@gmail.com';
+
 // Column headers expected on each tab (row 1). Order doesn't matter as
 // long as the header text matches exactly.
 const AVAILABILITY_HEADERS = ['Type', 'Date', 'DayOfWeek', 'Start', 'End', 'Note'];
@@ -85,8 +89,9 @@ function doPost(e) {
     }
 
     const action = payload.action;
+    let fields;
     if (action === 'request') {
-      appendRequestRow_({
+      fields = {
         type: 'Request a time',
         name: payload.name,
         contact: payload.contact,
@@ -96,9 +101,9 @@ function doPost(e) {
         eventId: '',
         eventTitle: '',
         message: payload.message,
-      });
+      };
     } else if (action === 'join') {
-      appendRequestRow_({
+      fields = {
         type: 'Join event',
         name: payload.name,
         contact: payload.contact,
@@ -108,10 +113,13 @@ function doPost(e) {
         eventId: payload.eventId,
         eventTitle: payload.eventTitle,
         message: payload.message,
-      });
+      };
     } else {
       throw new Error('Unknown action: ' + action);
     }
+
+    appendRequestRow_(fields);
+    notifyOwner_(fields);
 
     return jsonOutput_({ ok: true });
   } catch (err) {
@@ -186,6 +194,36 @@ function appendRequestRow_(fields) {
     fields.eventTitle || '',
     fields.message || '',
   ]);
+}
+
+// Emails NOTIFY_EMAIL about a new request/join. Failures here (e.g. mail
+// quota) are logged but never break the response the site sees — the row
+// is already saved on the sheet either way.
+function notifyOwner_(fields) {
+  if (!NOTIFY_EMAIL) return;
+  try {
+    let subject, body;
+    if (fields.type === 'Join event') {
+      subject = fields.name + ' wants to join "' + fields.eventTitle + '"';
+      body =
+        'Name: ' + fields.name + '\n' +
+        'Contact: ' + fields.contact + '\n' +
+        'Event: ' + fields.eventTitle + '\n' +
+        (fields.message ? '\nMessage: ' + fields.message + '\n' : '');
+    } else {
+      subject = fields.name + ' requested a time — ' + fields.date + ' ' + fields.start + '-' + fields.end;
+      body =
+        'Name: ' + fields.name + '\n' +
+        'Contact: ' + fields.contact + '\n' +
+        'Date: ' + fields.date + '\n' +
+        'Time: ' + fields.start + '–' + fields.end + '\n' +
+        (fields.message ? '\nMessage: ' + fields.message + '\n' : '');
+    }
+    body += '\n(Full details are on the Requests tab.)';
+    MailApp.sendEmail(NOTIFY_EMAIL, subject, body);
+  } catch (err) {
+    console.error('notifyOwner_ failed: ' + (err && err.message ? err.message : err));
+  }
 }
 
 // ----- Sheet helpers ----------------------------------------------------

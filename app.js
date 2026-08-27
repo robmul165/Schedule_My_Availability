@@ -213,7 +213,7 @@
       .sort(function (a, b) { return eventDateTime(a) - eventDateTime(b); });
 
     if (!upcoming.length) {
-      renderEmpty('events-list', "Nothing on the calendar right now — check back soon.");
+      renderEmpty('events-list', "Nothing on the calendar right now — schedule quick!");
       return;
     }
 
@@ -317,7 +317,7 @@
       '<p class="modal-sub">' + day.label + ', ' + day.dateLabel + '</p>' +
       '<form id="request-form">' +
         '<div class="field"><label>Your name</label><input type="text" name="name" required></div>' +
-        '<div class="field"><label>Best way to reach you (phone, email, or handle)</label><input type="text" name="contact" required></div>' +
+        '<div class="field"><label>Best way to reach you (phone or email)</label><input type="text" name="contact" required></div>' +
         '<div class="field">' +
           '<label>How would you like to pick a time?</label>' +
           '<div class="time-mode-toggle">' +
@@ -330,7 +330,7 @@
             '<div class="field"><label>Length</label>' +
               '<select name="duration">' + durationOptionsHTML + '</select>' +
             '</div>' +
-            '<div class="field"><label>Start time</label>' +
+            '<div class="field"><label>Time Slot</label>' +
               '<select name="slotStart">' + buildSlotOptionsHTML(day.windows, defaultDuration, stepMinutes) + '</select>' +
             '</div>' +
           '</div>' +
@@ -342,7 +342,7 @@
           '</div>' +
           '<p class="field-hint">Available: ' + windowsRangeText + '</p>' +
         '</div>' +
-        '<div class="field"><label>What do you want to do? (optional)</label><textarea name="message" placeholder="Coffee? A walk? Surprise me."></textarea></div>' +
+        '<div class="field"><label>What do you want to do?</label><textarea name="message" placeholder="Coffee? Deep philisophical conversations? Schedule now!"></textarea></div>' +
         '<input class="hp-field" tabindex="-1" autocomplete="off" type="text" name="honeypot">' +
         '<div class="modal-actions">' +
           '<button type="button" class="btn btn-secondary" id="request-cancel">Cancel</button>' +

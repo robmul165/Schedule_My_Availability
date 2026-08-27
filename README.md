@@ -80,15 +80,18 @@ Nothing here costs money. GitHub Pages and Google Apps Script are both free at t
 
 1. In your Sheet, go to **Extensions → Apps Script**.
 2. Delete anything in the default `Code.gs` editor and paste in the entire contents of this project's `apps-script/Code.gs` file.
-3. Click the disk icon (or Ctrl/Cmd+S) to save.
-4. Click **Deploy → New deployment**.
-5. Click the gear icon next to "Select type" and choose **Web app**.
-6. Fill in:
+3. Near the top, set `NOTIFY_EMAIL` to the address you want emailed whenever someone submits a request or joins an event (leave it `''` to turn that off).
+4. Click the disk icon (or Ctrl/Cmd+S) to save.
+5. Click **Deploy → New deployment**.
+6. Click the gear icon next to "Select type" and choose **Web app**.
+7. Fill in:
    - Description: anything, e.g. "schedule site"
    - Execute as: **Me**
    - Who has access: **Anyone**
-7. Click **Deploy**. Google will ask you to authorize the script — click through **Authorize access**, pick your account, then **Advanced → Go to (project name) (unsafe)** → **Allow**. (This warning shows up because it's your own unpublished script, not because anything is actually unsafe — it only touches this one spreadsheet.)
-8. Copy the **Web app URL** shown (it ends in `/exec`). You'll need it next.
+8. Click **Deploy**. Google will ask you to authorize the script — click through **Authorize access**, pick your account, then **Advanced → Go to (project name) (unsafe)** → **Allow**. (This warning shows up because it's your own unpublished script, not because anything is actually unsafe — it only touches this one spreadsheet, plus sending mail as you if `NOTIFY_EMAIL` is set.)
+9. Copy the **Web app URL** shown (it ends in `/exec`). You'll need it next.
+
+If you already had this deployed before adding `NOTIFY_EMAIL`, paste the updated code in, save, then use **Deploy → Manage deployments → edit (pencil) → New version → Deploy** rather than creating a whole new deployment — that keeps your existing Web app URL working, but Google may ask you to re-authorize since sending mail is a new permission.
 
 ### 3. Configure the website
 

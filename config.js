@@ -22,7 +22,7 @@ const CONFIG = {
   // carve chunks out of it. Use '00:00' / '24:00' if you really do want the
   // whole day open by default (including overnight).
   defaultDayStart: '08:00',
-  defaultDayEnd: '22:00',
+  defaultDayEnd: '24:00',
 
   // Accent color used throughout the site (hex).
   accentColor: '#ff6b6b',
