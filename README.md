@@ -1,0 +1,127 @@
+# Is Rob Free?
+
+A tiny, free website you can send someone a link to. They can see when you're
+free and request a time, or see specific things you're already planning and
+click to join. Runs entirely on **GitHub Pages** (free static hosting) plus a
+**Google Sheet** as the "database" — no server, no monthly cost, no account
+for visitors to make.
+
+You update your schedule by editing a Google Sheet (works great from your
+phone). Requests and "I'm in!" clicks land as new rows in that same sheet.
+
+---
+
+## How it works
+
+- `index.html`, `css/`, `js/` — the website itself (static files GitHub Pages serves for free).
+- `apps-script/Code.gs` — a small script that lives inside your Google Sheet and acts as the "backend": it hands your schedule to the website as JSON, and saves incoming requests as new rows.
+- Google Sheet — three tabs: **Availability** (your recurring free time + one-off overrides), **Events** (specific things you're doing), and **Requests** (auto-filled — this is where you'll see who wants to hang out).
+
+Nothing here costs money. GitHub Pages and Google Apps Script are both free at this scale.
+
+---
+
+## Setup (about 10 minutes, one time)
+
+### 1. Create the Google Sheet
+
+1. Go to [sheets.google.com](https://sheets.google.com) and create a new blank spreadsheet. Name it something like "Schedule Data".
+2. Rename the first tab (bottom-left) to **Availability**. Add this header row exactly:
+
+   | Type | Date | DayOfWeek | Start | End | Note |
+   |------|------|-----------|-------|-----|------|
+
+   - `Type`: `Free` or `Busy`
+   - `Date`: leave **blank** for a recurring weekly slot, or fill in a specific date (`2026-09-05`) to override just that day
+   - `DayOfWeek`: only used when `Date` is blank — e.g. `Monday`, `Tuesday`... (used for recurring weekly availability)
+   - `Start` / `End`: 24-hour `HH:MM`, e.g. `18:00` and `21:30`
+   - `Note`: optional, not shown on the site yet but handy for your own reference
+
+   Example rows:
+
+   | Type | Date | DayOfWeek | Start | End | Note |
+   |------|------|-----------|-------|-----|------|
+   | Free |  | Monday | 18:00 | 21:00 | usually free weeknights |
+   | Free |  | Wednesday | 18:00 | 21:00 | |
+   | Free |  | Saturday | 11:00 | 22:00 | |
+   | Free |  | Sunday | 11:00 | 20:00 | |
+   | Busy | 2026-09-07 |  | 18:00 | 21:00 | nope, working late that day |
+   | Free | 2026-09-10 |  | 08:00 | 10:00 | extra morning free before a trip |
+
+3. Add a second tab named **Events**. Header row:
+
+   | ID | Date | Start | End | Title | Location | Description | Link | Capacity |
+   |----|------|-------|-----|-------|----------|--------------|------|----------|
+
+   - `ID`: any short unique text, e.g. `trivia-sep4` (used internally to count who joined)
+   - `Date`: `YYYY-MM-DD`
+   - `Start`: 24-hour `HH:MM` (the site only needs a start time)
+   - `Capacity`: optional — leave blank for unlimited, or a number to cap it (the "join" button disables itself once full)
+
+   Example row:
+
+   | ID | Date | Start | End | Title | Location | Description | Link | Capacity |
+   |----|------|-------|-----|-------|----------|--------------|------|----------|
+   | trivia-sep4 | 2026-09-04 | 19:00 | 21:00 | Trivia Night | The Alibi Room | Team name TBD, come hungry | | 5 |
+
+4. Add a third tab named **Requests** and leave it empty — the script fills in the header row automatically the first time it runs, and every submission from the site becomes a new row here.
+
+*(If you forget a tab or header, the script actually creates any missing tab with the right headers the first time it runs — but matching the names above exactly avoids confusion.)*
+
+### 2. Add the Apps Script backend
+
+1. In your Sheet, go to **Extensions → Apps Script**.
+2. Delete anything in the default `Code.gs` editor and paste in the entire contents of this project's `apps-script/Code.gs` file.
+3. Click the disk icon (or Ctrl/Cmd+S) to save.
+4. Click **Deploy → New deployment**.
+5. Click the gear icon next to "Select type" and choose **Web app**.
+6. Fill in:
+   - Description: anything, e.g. "schedule site"
+   - Execute as: **Me**
+   - Who has access: **Anyone**
+7. Click **Deploy**. Google will ask you to authorize the script — click through **Authorize access**, pick your account, then **Advanced → Go to (project name) (unsafe)** → **Allow**. (This warning shows up because it's your own unpublished script, not because anything is actually unsafe — it only touches this one spreadsheet.)
+8. Copy the **Web app URL** shown (it ends in `/exec`). You'll need it next.
+
+### 3. Configure the website
+
+1. Open `js/config.js` in this project.
+2. Paste your Web app URL into `appsScriptUrl`.
+3. Optionally tweak `siteName`, `tagline`, `ownerFirstName`, `timezoneLabel`, `daysAhead`, and `accentColor` to make it yours.
+
+### 4. Put it on GitHub Pages
+
+1. Create a new **public** repository on GitHub (e.g. `is-rob-free`).
+2. Upload all the files in this project to the repo, keeping the folder structure (`index.html` at the root, plus the `css/`, `js/`, and `apps-script/` folders). Easiest way: on the repo's GitHub page, click **Add file → Upload files** and drag the whole folder in — or use `git`:
+
+   ```bash
+   git init
+   git add .
+   git commit -m "Initial site"
+   git branch -M main
+   git remote add origin https://github.com/YOUR_USERNAME/is-rob-free.git
+   git push -u origin main
+   ```
+
+3. In the repo, go to **Settings → Pages**.
+4. Under "Build and deployment", set **Source** to "Deploy from a branch", branch `main`, folder `/ (root)`. Save.
+5. Wait about a minute, then refresh — GitHub shows your live URL, something like `https://YOUR_USERNAME.github.io/is-rob-free/`.
+
+That's your shareable link.
+
+---
+
+## Day to day
+
+- **Update your schedule:** just edit the Availability or Events tab in the Google Sheet. No redeploy needed — the site reads live from the sheet every time someone loads it.
+- **See who's interested:** open the Requests tab. Each row has a timestamp, what they asked for (a specific time, or which event), their name, and how to reach them.
+- **Add a new event:** add a row to the Events tab with a new unique `ID`.
+- **Take something off the calendar:** delete the row, or just delete/blank its `Date` so it stops showing.
+
+---
+
+## A few notes
+
+- **Times** are shown exactly as you enter them in the sheet — set `timezoneLabel` in `config.js` to whatever you actually mean (defaults to Eastern Time) so visitors aren't guessing.
+- **Privacy:** GitHub Pages sites are technically public — anyone with the exact URL can view it — but it won't show up in search results or be discoverable unless you share the link. If you want a bit more obscurity, pick a repo name that isn't easy to guess (avoid `is-rob-free` if that feels too on the nose!).
+- **Spam:** the request/join forms include a hidden "honeypot" field that silently ignores basic bots. Apps Script's free quota (tens of thousands of requests/day) is far more than this will ever need.
+- **Testing locally:** once `config.js` has your real Apps Script URL, you can just open `index.html` directly in a browser to try it before pushing to GitHub.
