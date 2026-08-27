@@ -250,17 +250,35 @@ function readAvailability_() {
 function appendRequestRow_(fields) {
   const sheet = getSheet_(SHEET_NAMES.requests);
   const timestamp = Utilities.formatDate(new Date(), TIMEZONE, 'yyyy-MM-dd HH:mm:ss');
-  sheet.appendRow([
-    timestamp,
-    fields.type || '',
-    fields.name || '',
-    fields.contact || '',
-    fields.date || '',
-    fields.start || '',
-    fields.end || '',
-    fields.message || '',
+  appendRowByHeader_(sheet, {
+    Timestamp: timestamp,
+    Type: fields.type || '',
+    Name: fields.name || '',
+    Contact: fields.contact || '',
+    Date: fields.date || '',
+    Start: fields.start || '',
+    End: fields.end || '',
+    Message: fields.message || '',
     // "Accepted" / "Processed" intentionally left blank — you check the box.
-  ]);
+  });
+}
+
+// Appends a new row, placing each value under the column whose header text
+// matches its key — instead of assuming a fixed column order. This matters
+// because a sheet that's been through header changes (e.g. old EventId/
+// EventTitle columns from before Events was removed) can have columns in a
+// different order/position than REQUESTS_HEADERS describes; writing by
+// position in that case silently puts values under the wrong header. Any
+// key with no matching header is just skipped (nothing to write there).
+function appendRowByHeader_(sheet, values) {
+  const lastCol = Math.max(sheet.getLastColumn(), 1);
+  const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) { return String(h).trim(); });
+  const row = new Array(lastCol).fill('');
+  Object.keys(values).forEach(function (key) {
+    const idx = headerRow.indexOf(key);
+    if (idx !== -1) row[idx] = values[key];
+  });
+  sheet.appendRow(row);
 }
 
 // Emails NOTIFY_EMAIL about a new request. Failures here (e.g. mail quota)
